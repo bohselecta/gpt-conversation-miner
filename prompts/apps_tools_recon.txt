@@ -1,0 +1,16 @@
+ROLE: Product reconstructor.
+OBJECTIVE: From the quoted evidence below, infer distinct apps/tools that the author conceived, started, or partially built. DO NOT invent capabilities not suggested by the quotes.
+
+OUTPUT (JSON ONLY):
+Return exactly one JSON object with key "apps" mapping to an array of objects. Each object must include:
+- title: short, generated (<= 6 words)
+- summary: 1–2 sentences grounded in the quotes (no fabrication)
+- status: one of {idea, prototype, partial, built, unknown}
+- evidence_pages: array of page numbers referenced across the quotes
+- names_detected: array of proper names/brands mentioned in the evidence (e.g., Glyph Drive, TGO, CrashRewind)
+- evidence_quotes: array of 1–3 representative quotes (verbatim)
+
+Rules:
+- You MAY rephrase for title/summary, but keep them faithful to evidence.
+- Prefer merging near-duplicates into one item.
+- If evidence is thin, mark status "unknown".

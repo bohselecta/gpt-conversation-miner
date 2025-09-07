@@ -11,7 +11,7 @@ $Form.StartPosition = 'CenterScreen'
 
 # Labels & Inputs
 $lblPdf = New-Object System.Windows.Forms.Label
-$lblPdf.Text = 'PDF:'
+$lblPdf.Text = 'PDF/JSON:'
 $lblPdf.Location = '20,20'
 $lblPdf.AutoSize = $true
 
@@ -24,7 +24,7 @@ $btnBrowse.Text = 'Browse...'
 $btnBrowse.Location = '550,16'
 $btnBrowse.Add_Click({
   $ofd = New-Object System.Windows.Forms.OpenFileDialog
-  $ofd.Filter = 'PDF files (*.pdf)|*.pdf'
+  $ofd.Filter = 'PDF or JSON (*.pdf;*.json)|*.pdf;*.json|PDF files (*.pdf)|*.pdf|OpenAI export (*.json)|*.json|All files (*.*)|*.*'
   if ($ofd.ShowDialog() -eq 'OK') { $txtPdf.Text = $ofd.FileName }
 })
 
@@ -131,7 +131,12 @@ $btnScan.Add_Click({
   New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
   $gptModel = $cmbGpt.SelectedItem
-  $cmd = ".venv\\Scripts\\python.exe scripts\\scan_pdf.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel"
+  $ext = [System.IO.Path]::GetExtension($txtPdf.Text).ToLower()
+  if ($ext -eq '.json') {
+    $cmd = ".venv\\Scripts\\python.exe scripts\\scan_openai_json.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel"
+  } else {
+    $cmd = ".venv\\Scripts\\python.exe scripts\\scan_pdf.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel"
+  }
   Log "Running: $cmd"
   $res = cmd.exe /c $cmd 2>&1
   $res | ForEach-Object { Log $_ }
