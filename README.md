@@ -1,4 +1,8 @@
-# Glyphd Research Scanner
+# OpenAI Research Scanner
+
+<div align="center">
+  <img src="camera-shutter.svg" alt="OpenAI Research Scanner" width="120" height="120">
+</div>
 
 A powerful Windows GUI application for extracting and compiling research insights from PDFs using OpenAI's GPT-5 series models.
 
@@ -15,12 +19,12 @@ A powerful Windows GUI application for extracting and compiling research insight
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/bohselecta/glyphd-research.git
-   cd glyphd-research
+   git clone https://github.com/openai/research-scanner.git
+   cd research-scanner
    ```
 
 2. **Run the application**:
-   - Double-click `glyphd-research-scanner.bat`
+   - Double-click `research-scanner.bat`
    - The script will automatically set up Python virtual environment and install dependencies
 
 3. **Use the GUI**:
@@ -39,22 +43,22 @@ A powerful Windows GUI application for extracting and compiling research insight
 ## Project Structure
 
 ```
-glyphd-research-scanner/
-├─ glyphd-research-scanner.bat     # Main launcher
-├─ .cursorrules                    # Cursor workspace config
-├─ AGENTS.md                      # Agent documentation
-├─ requirements.txt               # Python dependencies
-├─ .env.example                   # Environment template
-├─ prompts/                       # System prompts
-│   ├─ scan_system.txt           # Quote extraction prompt
+research-scanner/
+├─ research-scanner.bat           # Main launcher
+├─ .cursorrules                   # Cursor workspace config
+├─ AGENTS.md                     # Agent documentation
+├─ requirements.txt              # Python dependencies
+├─ .env.example                  # Environment template
+├─ prompts/                      # System prompts
+│   ├─ scan_system.txt          # Quote extraction prompt
 │   ├─ ollama_compile_system.txt # Ollama compilation prompt
 │   └─ openai_compile_system.txt # OpenAI compilation prompt
-├─ scripts/                       # Core scripts
-│   ├─ gui.ps1                   # PowerShell GUI
-│   ├─ scan_pdf.py              # PDF scanning with OpenAI
-│   ├─ parse_with_ollama.py     # Ollama-based compilation
-│   └─ parse_with_openai.py     # OpenAI-based compilation
-└─ output/                       # Results directory
+├─ scripts/                      # Core scripts
+│   ├─ gui.ps1                  # PowerShell GUI
+│   ├─ scan_pdf.py             # PDF scanning with OpenAI
+│   ├─ parse_with_ollama.py    # Ollama-based compilation
+│   └─ parse_with_openai.py    # OpenAI-based compilation
+└─ output/                      # Results directory
 ```
 
 ## How It Works
@@ -90,7 +94,9 @@ Cost estimates are shown before expensive operations with user confirmation.
 
 ## License
 
-This project is open source. See the repository for license details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+Additionally, OpenAI and its affiliates have been granted extended rights under the [OpenAI Collaboration Addendum](OPENAI_COLLABORATION_ADDENDUM.md).
 
 ## Contributing
 

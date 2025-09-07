@@ -5,7 +5,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $Form = New-Object System.Windows.Forms.Form
-$Form.Text = "Glyphd Research Scanner"
+$Form.Text = "OpenAI Research Scanner"
 $Form.Size = New-Object System.Drawing.Size(700,520)
 $Form.StartPosition = 'CenterScreen'
 
@@ -98,6 +98,17 @@ $cmbRoles.DropDownStyle = 'DropDownList'
 [void]$cmbRoles.Items.AddRange(@('Both','User only','Assistant only'))
 $cmbRoles.SelectedIndex = 0
 
+# Cost threshold
+$lblThreshold = New-Object System.Windows.Forms.Label
+$lblThreshold.Text = 'Auto-run if cost ≤ $'
+$lblThreshold.Location = '220,170'
+$lblThreshold.AutoSize = $true
+
+$txtThreshold = New-Object System.Windows.Forms.TextBox
+$txtThreshold.Location = '355,168'
+$txtThreshold.Size = '60,24'
+$txtThreshold.Text = '0.50'
+
 # Buttons
 $btnOpen = New-Object System.Windows.Forms.Button
 $btnOpen.Text = 'Open PDF'
@@ -131,7 +142,7 @@ function Log([string]$msg) {
   $txtLog.AppendText("[$ts] $msg`r`n")
 }
 
-$Form.Controls.AddRange(@($lblPdf,$txtPdf,$btnBrowse,$lblKey,$txtKey,$chkSaveEnv,$lblOllama,$txtOllama,$btnOllama,$lblModel,$cmbModel,$lblGpt,$cmbGpt,$lblRoles,$cmbRoles,$btnOpen,$btnScan,$btnParseGPT,$btnAppsTools,$txtLog))
+$Form.Controls.AddRange(@($lblPdf,$txtPdf,$btnBrowse,$lblKey,$txtKey,$chkSaveEnv,$lblOllama,$txtOllama,$btnOllama,$lblModel,$cmbModel,$lblGpt,$cmbGpt,$lblRoles,$cmbRoles,$lblThreshold,$txtThreshold,$btnOpen,$btnScan,$btnParseGPT,$btnAppsTools,$txtLog))
 
 # Handlers
 $btnScan.Add_Click({
@@ -188,12 +199,18 @@ $btnParseGPT.Add_Click({
     $est = $jsonLine | ConvertFrom-Json
     $inTok = [int]$est.estimate.input_tokens
     $outTok = [int]$est.estimate.output_tokens
-    $cost = [double]$est.estimate.usd_total
-    $rateIn = $est.estimate.usd_per_million_input
-    $rateOut = $est.estimate.usd_per_million_output
-    $msg = "Estimated tokens — in: $inTok, out: $outTok`nModel rates — in: $rateIn/million, out: $rateOut/million`nEstimated cost: $" + ([Math]::Round([double]$cost,4)) + " USD. Continue?"
+  $cost = [double]$est.estimate.usd_total
+  $rateIn = $est.estimate.usd_per_million_input
+  $rateOut = $est.estimate.usd_per_million_output
+  $threshold = [double]$txtThreshold.Text
+  $msg = "Estimated tokens — in: $inTok, out: $outTok`nModel rates — in: $rateIn/million, out: $rateOut/million`nEstimated cost: $" + ([Math]::Round([double]$cost,4)) + " USD. Continue?"
+  
+  if ($cost -le $threshold) {
+    Log "Cost ($([Math]::Round($cost,4))) is within threshold ($threshold). Auto-running..."
+  } else {
     $choice = [System.Windows.Forms.MessageBox]::Show($msg, 'Cost estimate', 'YesNo', 'Question')
     if ($choice -ne 'Yes') { Log 'Canceled by user.'; return }
+  }
   } catch {
     Log 'Could not parse estimate JSON; proceeding without confirmation.'
   }

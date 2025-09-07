@@ -49,8 +49,7 @@ def extract_quotes(client: OpenAI, model: str, chunk_text: str, p_start: int, p_
         instructions=instr,
         input=[{"role":"user","content":[{"type":"input_text","text":chunk_text}]}],
         # Keep it terse for cost
-        temperature=0.1,
-        response_format={"type": "json_object"}
+        temperature=0.1
     )
     txt = resp.output_text
     records = []

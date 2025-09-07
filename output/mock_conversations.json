@@ -1,0 +1,47 @@
+[
+  {
+    "id": "conv-1",
+    "title": "Test App Discussion",
+    "mapping": {
+      "node-1": {
+        "message": {
+          "author": {
+            "role": "user"
+          },
+          "content": {
+            "parts": [
+              "I'm building an app called TestApp that uses machine learning."
+            ]
+          },
+          "create_time": 1640995200
+        }
+      },
+      "node-2": {
+        "message": {
+          "author": {
+            "role": "assistant"
+          },
+          "content": {
+            "parts": [
+              "That sounds interesting! What kind of machine learning?"
+            ]
+          },
+          "create_time": 1640995260
+        }
+      },
+      "node-3": {
+        "message": {
+          "author": {
+            "role": "user"
+          },
+          "content": {
+            "parts": [
+              "I'm thinking of using deep learning for data analysis."
+            ]
+          },
+          "create_time": 1640995320
+        }
+      }
+    }
+  }
+]

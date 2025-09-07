@@ -1,4 +1,4 @@
-# Glyphd Research Scanner — Agent Plan
+# OpenAI Research Scanner — Agent Plan
 
 ## Agent A: PDF/JSON Sweeper (OpenAI)
 - input: pdf path or conversations.json
