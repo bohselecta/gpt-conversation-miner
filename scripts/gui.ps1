@@ -133,7 +133,7 @@ $btnScan.Add_Click({
   $gptModel = $cmbGpt.SelectedItem
   $ext = [System.IO.Path]::GetExtension($txtPdf.Text).ToLower()
   if ($ext -eq '.json') {
-    $cmd = ".venv\\Scripts\\python.exe scripts\\scan_openai_json.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel"
+    $cmd = ".venv\\Scripts\\python.exe scripts\\scan_openai_json_enhanced.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel --dedupe"
   } else {
     $cmd = ".venv\\Scripts\\python.exe scripts\\scan_pdf.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel"
   }

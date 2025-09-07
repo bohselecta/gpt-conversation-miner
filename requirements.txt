@@ -5,3 +5,5 @@ tqdm>=4.66.0
 python-dotenv>=1.0.1
 # for token counting (with graceful fallback)
 tiktoken>=0.7.0
+# for streaming JSON parsing
+ijson>=3.2.0
