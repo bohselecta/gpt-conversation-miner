@@ -1,7 +1,7 @@
 # OpenAI Research Scanner
 
 <div align="center">
-  <img src="camera-shutter.svg" alt="OpenAI Research Scanner" width="120" height="120" style="filter: brightness(0) invert(0);">
+  <img src="camera-shutter.svg" alt="OpenAI Research Scanner" width="120" height="120" style="filter: brightness(0) invert(1);">
 </div>
 
 A powerful Windows GUI application for extracting and compiling research insights from PDFs using OpenAI's GPT-5 series models.
