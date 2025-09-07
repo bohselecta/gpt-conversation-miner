@@ -85,6 +85,19 @@ $cmbGpt.DropDownStyle = 'DropDownList'
 [void]$cmbGpt.Items.AddRange(@('gpt-5','gpt-5-mini','gpt-5-nano','gpt-4o'))
 $cmbGpt.SelectedIndex = 0
 
+# Role filter for JSON scans
+$lblRoles = New-Object System.Windows.Forms.Label
+$lblRoles.Text = 'Roles:'
+$lblRoles.Location = '20,170'
+$lblRoles.AutoSize = $true
+
+$cmbRoles = New-Object System.Windows.Forms.ComboBox
+$cmbRoles.Location = '70,168'
+$cmbRoles.Size = '120,24'
+$cmbRoles.DropDownStyle = 'DropDownList'
+[void]$cmbRoles.Items.AddRange(@('Both','User only','Assistant only'))
+$cmbRoles.SelectedIndex = 0
+
 # Buttons
 $btnOpen = New-Object System.Windows.Forms.Button
 $btnOpen.Text = 'Open PDF'
@@ -98,7 +111,12 @@ $btnScan.Location = '140,180'
 $btnParseGPT = New-Object System.Windows.Forms.Button
 $btnParseGPT.Text = 'Compile with GPT (+ cost estimate)'
 $btnParseGPT.Location = '360,180'
-$btnParseGPT.Size = '350,30'
+$btnParseGPT.Size = '200,30'
+
+$btnAppsTools = New-Object System.Windows.Forms.Button
+$btnAppsTools.Text = 'Reconstruct Apps & Tools'
+$btnAppsTools.Location = '570,180'
+$btnAppsTools.Size = '200,30'
 
 # Log box
 $txtLog = New-Object System.Windows.Forms.TextBox
@@ -113,7 +131,7 @@ function Log([string]$msg) {
   $txtLog.AppendText("[$ts] $msg`r`n")
 }
 
-$Form.Controls.AddRange(@($lblPdf,$txtPdf,$btnBrowse,$lblKey,$txtKey,$chkSaveEnv,$lblOllama,$txtOllama,$btnOllama,$lblModel,$cmbModel,$lblGpt,$cmbGpt,$btnOpen,$btnScan,$btnParseGPT,$txtLog))
+$Form.Controls.AddRange(@($lblPdf,$txtPdf,$btnBrowse,$lblKey,$txtKey,$chkSaveEnv,$lblOllama,$txtOllama,$btnOllama,$lblModel,$cmbModel,$lblGpt,$cmbGpt,$lblRoles,$cmbRoles,$btnOpen,$btnScan,$btnParseGPT,$btnAppsTools,$txtLog))
 
 # Handlers
 $btnScan.Add_Click({
@@ -132,8 +150,15 @@ $btnScan.Add_Click({
 
   $gptModel = $cmbGpt.SelectedItem
   $ext = [System.IO.Path]::GetExtension($txtPdf.Text).ToLower()
+  
+  $rolesArg = switch ($cmbRoles.SelectedItem) {
+    'User only' { '--roles user' }
+    'Assistant only' { '--roles assistant' }
+    default { '--roles both' }
+  }
+  
   if ($ext -eq '.json') {
-    $cmd = ".venv\\Scripts\\python.exe scripts\\scan_openai_json_enhanced.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel --dedupe"
+    $cmd = ".venv\\Scripts\\python.exe scripts\\scan_openai_json.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel $rolesArg"
   } else {
     $cmd = ".venv\\Scripts\\python.exe scripts\\scan_pdf.py -i `"$($txtPdf.Text)`" -o `"$outDir`" -m $gptModel"
   }
@@ -177,6 +202,21 @@ $btnParseGPT.Add_Click({
   $runCmd = ".venv\\Scripts\\python.exe scripts\\parse_with_openai.py -i `"$jsonl`" -m `"$model`" -o `"$latest.FullName`""
   Log "Running: $runCmd"
   $res = cmd.exe /c $runCmd 2>&1
+  $res | ForEach-Object { Log $_ }
+})
+
+$btnAppsTools.Add_Click({
+  $latest = Get-ChildItem (Join-Path $WorkingDir 'output') | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if (-not $latest) { Log 'No output folder found. Run a scan first.'; return }
+  $jsonl = Join-Path $latest.FullName 'scan_quotes.jsonl'
+  if (-not (Test-Path $jsonl)) { Log 'scan_quotes.jsonl not found. Run a scan first.'; return }
+  if (-not $txtKey.Text) { Log 'Enter your OpenAI API key.'; return }
+  $env:OPENAI_API_KEY = $txtKey.Text
+  $model = $cmbGpt.SelectedItem
+
+  $cmd = ".venv\\Scripts\\python.exe scripts\\reconstruct_apps_tools.py -i `"$jsonl`" -m `"$model`" -o `"$latest.FullName`""
+  Log "Running: $cmd"
+  $res = cmd.exe /c $cmd 2>&1
   $res | ForEach-Object { Log $_ }
 })
 

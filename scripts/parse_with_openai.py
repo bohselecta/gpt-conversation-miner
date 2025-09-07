@@ -173,9 +173,15 @@ def main():
 
     estimate = estimate_tokens_and_cost(args.model, groups, DEFAULT_PROMPT)
 
+    # Write cost report file
+    cost_path = pathlib.Path(args.outdir) / 'cost_report.json'
     if args.estimate_only:
+        cost_path.write_text(json.dumps({'estimate': estimate}, indent=2), encoding='utf-8')
         print(json.dumps({'estimate': estimate}, ensure_ascii=False))
         return
+
+    # Write cost report before running
+    cost_path.write_text(json.dumps({'estimate': estimate}, indent=2), encoding='utf-8')
 
     print(f"Estimated input tokens: {estimate['input_tokens']} | output tokens: {estimate['output_tokens']}")
     if estimate['usd_total'] is not None:

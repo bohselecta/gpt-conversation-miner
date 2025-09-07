@@ -1,9 +1,15 @@
-import os, json, argparse, pathlib, re, unicodedata
+import os, json, argparse, pathlib, re, unicodedata, glob, csv
 from typing import List, Dict
 from tqdm import tqdm
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from openai import OpenAI
+
+# Try to import ijson for streaming
+try:
+    import ijson
+except ImportError:
+    ijson = None
 
 CHARS_PER_CHUNK = 9000
 PSEUDO_PAGE_SIZE = 2500  # split long convs into page-sized slices
@@ -23,6 +29,10 @@ def normalize_text(s: str) -> str:
     s = unicodedata.normalize('NFKC', s)
     s = re.sub(r"\s+", " ", s)
     return s.strip()
+
+def norm_key(s: str) -> str:
+    """Create normalized key for deduplication."""
+    return re.sub(r'\s+', ' ', normalize_text(s)).lower()
 
 # ----- Input loading -----
 
@@ -63,49 +73,59 @@ def _extract_message_text(msg: Dict) -> str:
 
     return ''
 
-def load_pages_from_openai_json(path: str) -> List[str]:
-    p = pathlib.Path(path)
-    data = json.loads(p.read_text(encoding='utf-8'))
-    convs = data if isinstance(data, list) else data.get('conversations') or []
-    pages: List[str] = []
+def stream_conversations(fp):
+    """Stream conversations from file, trying ijson first, fallback to json."""
+    if ijson is None:
+        data = json.load(fp)
+        return data if isinstance(data, list) else data.get('conversations', [])
+    # Try both top-level shapes
+    try:
+        return ijson.items(fp, 'item')  # list at top
+    except Exception:
+        fp.seek(0)
+        return ijson.items(fp, 'conversations.item')
 
-    for idx, conv in enumerate(convs, start=1):
-        title = conv.get('title') or f'Conversation {idx}'
-        texts: List[str] = []
+def iter_inputs(path: str):
+    """Iterate over input files - single file or directory."""
+    if os.path.isdir(path):
+        for fn in glob.glob(os.path.join(path, '*.json')):
+            if not fn.endswith('index.html'):  # Skip index files
+                yield fn
+    else:
+        yield path
 
-        # Prefer mapping graph if present
-        mapping = conv.get('mapping')
-        if isinstance(mapping, dict) and mapping:
-            nodes = list(mapping.values())
-            def node_time(n):
-                m = n.get('message') or {}
-                return m.get('create_time') or 0
-            nodes.sort(key=node_time)
-            for n in nodes:
-                m = n.get('message') or {}
-                t = _extract_message_text(m)
-                if t:
-                    role = ((m.get('author') or {}).get('role') or 'unknown').upper()
-                    texts.append(f"{role}: {t}")
-
-        # Fallback to flat messages
-        if not texts and isinstance(conv.get('messages'), list):
-            for m in conv['messages']:
-                t = _extract_message_text(m)
-                if t:
-                    role = (m.get('role') or 'unknown').upper()
-                    texts.append(f"{role}: {t}")
-
-        if not texts:
-            continue
-
-        header = f"[CONV: {title}]\n"
-        full = header + "\n\n".join(texts)
-
-        # Split into pseudo-pages so downstream shows [p.X] refs
-        for off in range(0, len(full), PSEUDO_PAGE_SIZE):
-            pages.append(full[off:off+PSEUDO_PAGE_SIZE])
-
+def load_pages_from_openai_json_one(path: str, include_user=True, include_assistant=True) -> List[str]:
+    """Load pages from a single JSON file with role filtering."""
+    pages = []
+    with open(path, 'r', encoding='utf-8') as fp:
+        for conv in stream_conversations(fp):
+            title = conv.get('title') or 'Conversation'
+            texts = []
+            mapping = conv.get('mapping')
+            if isinstance(mapping, dict) and mapping:
+                nodes = sorted(mapping.values(), key=lambda n: (n.get('message') or {}).get('create_time') or 0)
+                for n in nodes:
+                    m = n.get('message') or {}
+                    role = ((m.get('author') or {}).get('role') or 'unknown').lower()
+                    if (role == 'user' and not include_user) or (role == 'assistant' and not include_assistant):
+                        continue
+                    t = _extract_message_text(m)
+                    if t:
+                        texts.append(f"{role.upper()}: {t}")
+            if not texts and isinstance(conv.get('messages'), list):
+                for m in conv['messages']:
+                    role = (m.get('role') or 'unknown').lower()
+                    if (role == 'user' and not include_user) or (role == 'assistant' and not include_assistant):
+                        continue
+                    t = _extract_message_text(m)
+                    if t:
+                        texts.append(f"{role.upper()}: {t}")
+            if not texts:
+                continue
+            header = f"[CONV: {title}]\n"
+            full = header + "\n\n".join(texts)
+            for off in range(0, len(full), PSEUDO_PAGE_SIZE):
+                pages.append(full[off:off+PSEUDO_PAGE_SIZE])
     return pages
 
 # ----- Chunking -----
@@ -168,10 +188,14 @@ def extract_quotes(client: OpenAI, model: str, chunk_text: str, p_start: int, p_
 def main():
     load_dotenv()
     ap = argparse.ArgumentParser()
-    ap.add_argument('-i','--input', required=True, help='OpenAI conversations.json path')
+    ap.add_argument('-i','--input', required=True, help='OpenAI conversations.json path or directory')
     ap.add_argument('-o','--outdir', required=True, help='Output directory')
     ap.add_argument('-m','--model', default=os.getenv('OPENAI_MODEL','gpt-5'))
+    ap.add_argument('--roles', choices=['both','user','assistant'], default='both')
     args = ap.parse_args()
+    
+    include_user = args.roles in ('both','user')
+    include_assistant = args.roles in ('both','assistant')
 
     if not os.getenv('OPENAI_API_KEY'):
         raise SystemExit('OPENAI_API_KEY is not set. Provide via GUI or .env')
@@ -180,19 +204,33 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
     jsonl_path = outdir / 'scan_quotes.jsonl'
 
-    pages = load_pages_from_openai_json(args.input)
-    chunks = chunk_pages(pages)
     client = OpenAI()
+    seen = set()
+    csv_path = outdir / 'quotes_index.csv'
+    
+    with open(jsonl_path, 'w', encoding='utf-8') as jf, open(csv_path, 'w', newline='', encoding='utf-8') as cf:
+        cw = csv.writer(cf)
+        cw.writerow(['page_start','page_end','category','top_tag','preview','conversation'])
 
-    kept_total = 0
-    with open(jsonl_path, 'w', encoding='utf-8') as f:
-        for p_start, p_end, text in tqdm(chunks, desc='Scanning JSON'):
-            recs = extract_quotes(client, args.model, text, p_start, p_end)
-            for r in recs:
-                f.write(json.dumps(r, ensure_ascii=False) + '\n')
-            kept_total += len(recs)
+        for inp in iter_inputs(args.input):
+            pages = load_pages_from_openai_json_one(inp, include_user, include_assistant)
+            chunks = chunk_pages(pages)
+            for p_start, p_end, text in tqdm(chunks, desc=f'Scanning {os.path.basename(inp)}'):
+                recs = extract_quotes(client, args.model, text, p_start, p_end)
+                conv_match = re.search(r'\[CONV:\s*(.*?)\]', text)
+                conv_title = conv_match.group(1).strip() if conv_match else ''
+                for r in recs:
+                    key = norm_key(r['quote'])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    r_out = dict(r); r_out['conversation'] = conv_title  # keep convo label
+                    jf.write(json.dumps(r_out, ensure_ascii=False) + '\n')
+                    cw.writerow([r['page_start'], r['page_end'], r.get('category',''),
+                                 (r.get('tags') or [''])[0], r['quote'][:80].replace('\n',' '), conv_title])
 
-    print(f"Wrote {kept_total} verified quotes → {jsonl_path}")
+    print(f"Wrote verified quotes → {jsonl_path}")
+    print(f"Wrote CSV index → {csv_path}")
 
 if __name__ == '__main__':
     main()
